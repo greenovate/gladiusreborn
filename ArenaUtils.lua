@@ -535,7 +535,6 @@ end
 -- Register queue events
 local queueEventFrame = CreateFrame("Frame")
 queueEventFrame:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
-queueEventFrame:RegisterEvent("BATTLEFIELD_MGR_QUEUE_REQUEST_RESPONSE")
 queueEventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "UPDATE_BATTLEFIELD_STATUS" then
         for i = 1, GetMaxBattlefieldID() do
