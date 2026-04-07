@@ -442,32 +442,40 @@ local OFFENSIVE_AURAS = {
     [10060] = true,   -- Power Infusion
 }
 
-function GR:CreateGlowFrame(f)
-    if f.alertGlow then return end
+function GR:CreateAlertBanner(f)
+    if f.alertBanner then return end
 
-    -- Clickthrough gradient overlay on top of the frame
-    f.alertGlow = CreateFrame("Frame", nil, f)
-    f.alertGlow:SetAllPoints()
-    f.alertGlow:SetFrameLevel(f:GetFrameLevel() + 4)
-    f.alertGlow:EnableMouse(false) -- clickthrough
+    f.alertBanner = CreateFrame("Frame", nil, f)
+    f.alertBanner:SetHeight(14)
+    f.alertBanner:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, 1)
+    f.alertBanner:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 0, 1)
+    f.alertBanner:SetFrameLevel(f:GetFrameLevel() + 2)
+    f.alertBanner:EnableMouse(false)
 
-    -- Full frame gradient overlay
-    f.alertGlow.overlay = f.alertGlow:CreateTexture(nil, "OVERLAY", nil, 7)
-    f.alertGlow.overlay:SetAllPoints()
-    f.alertGlow.overlay:SetTexture("Interface\\Buttons\\WHITE8x8")
-    f.alertGlow.overlay:SetBlendMode("ADD")
+    f.alertBanner.bg = f.alertBanner:CreateTexture(nil, "BACKGROUND")
+    f.alertBanner.bg:SetAllPoints()
+    f.alertBanner.bg:SetTexture("Interface\\Buttons\\WHITE8x8")
 
-    f.alertGlow:Hide()
+    f.alertBanner.text = f.alertBanner:CreateFontString(nil, "OVERLAY")
+    f.alertBanner.text:SetPoint("CENTER")
+    f.alertBanner.text:SetFont(STANDARD_TEXT_FONT, 9, "OUTLINE")
+    f.alertBanner.text:SetTextColor(1, 1, 1)
+
+    f.alertBanner:Hide()
 end
 
-function GR:SetGlow(f, r, g, b)
-    if not f.alertGlow then GR:CreateGlowFrame(f) end
-    -- Subtle additive color wash over the whole frame
-    f.alertGlow.overlay:SetVertexColor(r, g, b, 0.15)
-    f.alertGlow:Show()
+function GR:SetGlow(f, r, g, b, label)
+    if not f.alertBanner then GR:CreateAlertBanner(f) end
+    f.alertBanner.bg:SetVertexColor(r, g, b, 0.85)
+    f.alertBanner.text:SetText(label or "")
+    f.alertBanner.text:SetTextColor(1, 1, 1)
+    f.alertBanner:Show()
 end
 
 function GR:ClearGlow(f)
+    if f.alertBanner then
+        f.alertBanner:Hide()
+    end
     if f.alertGlow then
         f.alertGlow:Hide()
     end
@@ -540,12 +548,12 @@ function GR:UpdateGlow(index)
     local hpPctInt = math.floor(hpPct * 100)
 
     if hasDefensive then
-        GR:SetGlow(f, 1, 0.6, 0)
+        GR:SetGlow(f, 1, 0.6, 0, "DEFENSIVES UP")
         if defensiveName and CanAlert(index, "defensive") then
             GR:Announce("ENEMY DEFENSIVE: " .. enemyName .. " (" .. defensiveName .. ")", "defensiveCD", 5)
         end
     elseif hasOffensive then
-        GR:SetGlow(f, 1, 0, 0)
+        GR:SetGlow(f, 1, 0, 0, "BIG DAMAGE CDS")
         if offensiveName and CanAlert(index, "offensive") then
             GR:Announce("ENEMY OFFENSIVE: " .. enemyName .. " (" .. offensiveName .. ")", "offensiveCD", 4)
         end
@@ -553,11 +561,14 @@ function GR:UpdateGlow(index)
         local trinketDown = data and data.trinketUsed > 0
             and (data.trinketUsed + GR.TRINKET_COOLDOWN - GetTime()) > 0
         if trinketDown then
-            GR:SetGlow(f, 0, 0.8, 0)
-            -- Win condition: low HP + no trinket + no defensives
             local threshold = cfg.enemyLowHPThreshold or 25
-            if hpPct > 0 and hpPctInt <= threshold and CanAlert(index, "killable") then
-                GR:Announce("KILL TARGET: " .. enemyName .. " (" .. hpPctInt .. "%) NO TRINKET", "killTarget", 4)
+            if hpPct > 0 and hpPctInt <= threshold then
+                GR:SetGlow(f, 0, 1, 0, ">>> CAN DIE <<<")
+                if CanAlert(index, "killable") then
+                    GR:Announce("KILL TARGET: " .. enemyName .. " (" .. hpPctInt .. "%) NO TRINKET", "killTarget", 4)
+                end
+            else
+                GR:SetGlow(f, 0.2, 0.7, 0.2, "NO TRINKET")
             end
         else
             GR:ClearGlow(f)

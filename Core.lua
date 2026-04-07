@@ -37,6 +37,8 @@ local defaults = {
         eyeTracker = true,
         prepChecklist = true,
         queueAlert = true,
+        loseControl = true,
+        bgCallouts = true,
     },
     appearance = {
         preset = "default",
@@ -396,8 +398,8 @@ function GR:ScanArenaOpponents()
                 end
 
                 f.nameText:SetText(data.name .. " (" .. classFile:sub(1,1) .. classFile:sub(2):lower() .. ")")
-                f:SetAlpha(0.7) -- partially visible = detected but not seen
-                f:Show()
+                f:SetAlpha(0.7)
+                if not InCombatLockdown() then f:Show() end
 
                 GR:Announce("SPEC DETECTED: " .. data.name .. " - " .. classFile:sub(1,1) .. classFile:sub(2):lower(), "enemySpec", 30)
 
@@ -518,6 +520,55 @@ function GR:CheckZone()
 end
 
 ------------------------------------------------------------
+-- Preview All Frames
+------------------------------------------------------------
+GR._previewAllActive = false
+
+function GR:TogglePreviewAll()
+    if GR._previewAllActive then
+        -- Hide everything
+        GR:HideTest()
+        if GR.ToggleBGPreview then
+            -- Only hide if showing
+            if _G["GladiusReborn_BGBar"] and _G["GladiusReborn_BGBar"]:IsShown() then
+                GR:ToggleBGPreview()
+            end
+        end
+        if GR.StopEyeTracker then GR:StopEyeTracker() end
+        if GR.HidePrepChecklist then GR:HidePrepChecklist() end
+        if _G["GladiusReborn_QueueAlert"] then _G["GladiusReborn_QueueAlert"]:Hide() end
+        if _G["GladiusReborn_LoseControl"] then _G["GladiusReborn_LoseControl"]:Hide() end
+        GR._previewAllActive = false
+        GR:Print("All previews hidden.")
+    else
+        -- Show everything
+        GR:ShowTest(3)
+        if GR.ToggleBGPreview then GR:ToggleBGPreview() end
+        if GR.CreateEyeTracker then
+            GR:CreateEyeTracker()
+            if _G["GladiusReborn_EyeTracker"] then
+                _G["GladiusReborn_EyeTracker"]:Show()
+                _G["GladiusReborn_EyeTracker"].text:SetText("Eye: 1:15")
+                _G["GladiusReborn_EyeTracker"].text:SetTextColor(0.7, 0.5, 1)
+            end
+        end
+        if GR.CreateLoseControl then
+            GR:CreateLoseControl()
+            local lc = _G["GladiusReborn_LoseControl"]
+            if lc then
+                lc.icon:SetTexture("Interface\\Icons\\Spell_Nature_Polymorph")
+                lc.timer:SetText("4.2")
+                lc.label:SetText("INCAP")
+                lc.label:SetTextColor(0, 0.5, 1)
+                lc:Show()
+            end
+        end
+        GR._previewAllActive = true
+        GR:Print("All previews shown. Drag to reposition.")
+    end
+end
+
+------------------------------------------------------------
 -- Main Event Frame
 ------------------------------------------------------------
 local eventFrame = CreateFrame("Frame", "GladiusReborn_EventFrame")
@@ -548,6 +599,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             GR:InitDB()
             GR:CreateAllFrames()
             GR:ResetArenaData()
+            if GR.SetupAceConfig then GR:SetupAceConfig() end
             GR:Print("Loaded. Type |cff00ff00/gladius ui|r for options.")
             self:UnregisterEvent("ADDON_LOADED")
         end

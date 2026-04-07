@@ -350,10 +350,10 @@ local function ApplyAppearance(f)
     local showIcon = a.showClassIcon ~= false
     f.classIcon:SetSize(ICON_SIZE, ICON_SIZE)
     f.classIcon:ClearAllPoints()
+    f.classIcon:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -PAD)
     if showIcon then
-        f.classIcon:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -PAD)
+        f.classIcon:Show()
     else
-        f.classIcon:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -PAD)
         f.classIcon:Hide()
     end
 
@@ -362,7 +362,10 @@ local function ApplyAppearance(f)
     f.specText:ClearAllPoints()
     f.specText:SetFont(a.nameFont or STANDARD_TEXT_FONT, math.max(7, (a.nameFontSize or 11) - 3), a.nameFontFlags or "OUTLINE")
     f.specText:SetTextColor(0.8, 0.8, 0.8)
-    if specPos == "ICON" then
+    if not showIcon and specPos == "ICON" then
+        -- If icon is hidden and spec is set to show on icon, hide spec too
+        f.specText:Hide()
+    elseif specPos == "ICON" then
         f.specText:SetPoint("BOTTOM", f.classIcon, "BOTTOM", 0, 1)
     elseif specPos == "NAME" then
         -- Will be appended to name text in UpdateFrameUnit
@@ -500,7 +503,7 @@ local function ApplyAppearance(f)
     local trinketTextOpacity = a.trinketCDTextOpacity or 1.0
     f.trinket.cooldown:SetHideCountdownNumbers(true) -- always hide Blizzard's
     if not f.trinket.timerText then
-        f.trinket.timerText = f.trinket:CreateFontString(nil, "OVERLAY")
+        f.trinket.timerText = f.trinket.cooldown:CreateFontString(nil, "OVERLAY")
         f.trinket.timerText:SetPoint("CENTER", f.trinket, "CENTER", 0, 0)
     end
     f.trinket.timerText:SetFont(a.nameFont or STANDARD_TEXT_FONT, trinketTextSize, "OUTLINE")
@@ -863,6 +866,29 @@ function GR:RebuildAllFrames()
             if GR.arenaData[i] and GR.arenaData[i].dr then
                 GR:UpdateDRIcons(i)
             end
+            -- Re-apply test mode visuals
+            if GR.testMode and GR.arenaData[i] and GR.arenaData[i].classFile then
+                local data = GR.arenaData[i]
+                local a = A()
+                local classFile = data.classFile
+                if classFile and GR.CLASS_TCOORDS[classFile] then
+                    f.classIcon:SetTexCoord(unpack(GR.CLASS_TCOORDS[classFile]))
+                    if a.showClassIcon ~= false then
+                        f.classIcon:Show()
+                    end
+                end
+                local color = RAID_CLASS_COLORS[classFile]
+                if color then
+                    if a.nameColorByClass ~= false then
+                        f.nameText:SetTextColor(color.r, color.g, color.b)
+                    end
+                    if a.classColorBars then
+                        f.healthBar:SetStatusBarColor(color.r, color.g, color.b)
+                    else
+                        f.healthBar:SetStatusBarColor(0.2, 0.8, 0.2)
+                    end
+                end
+            end
         end
     end
 end
@@ -870,12 +896,34 @@ end
 ------------------------------------------------------------
 -- Show / Hide
 ------------------------------------------------------------
+local pendingShow = {}
+
 function GR:ShowFrame(index)
     local f = GR.frames[index]
-    if f then f:Show() end
+    if not f then return end
+    if f:IsShown() then return end -- already visible, skip
+    if InCombatLockdown() then
+        -- Frame is secure, can't show during combat
+        -- But it should already be shown from prep phase
+        -- Queue it for after combat just in case
+        pendingShow[index] = true
+    else
+        f:Show()
+    end
 end
 
+local combatEndFrame = CreateFrame("Frame")
+combatEndFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+combatEndFrame:SetScript("OnEvent", function()
+    for index in pairs(pendingShow) do
+        local f = GR.frames[index]
+        if f and not f:IsShown() then f:Show() end
+    end
+    wipe(pendingShow)
+end)
+
 function GR:HideAllFrames()
+    if InCombatLockdown() then return end
     for i = 1, 5 do
         local f = GR.frames[i]
         if f then
@@ -1249,12 +1297,20 @@ function GR:ShowTest(count)
 
         if GR.CLASS_TCOORDS[classFile] then
             f.classIcon:SetTexCoord(unpack(GR.CLASS_TCOORDS[classFile]))
-            f.classIcon:Show()
+            if a.showClassIcon ~= false then
+                f.classIcon:Show()
+            else
+                f.classIcon:Hide()
+            end
         end
 
         local color = RAID_CLASS_COLORS[classFile]
         if color then
-            f.nameText:SetTextColor(color.r, color.g, color.b)
+            if a.nameColorByClass ~= false then
+                f.nameText:SetTextColor(color.r, color.g, color.b)
+            else
+                f.nameText:SetTextColor(1, 1, 1)
+            end
             if a.classColorBars then
                 f.healthBar:SetStatusBarColor(color.r, color.g, color.b)
             else
@@ -1300,7 +1356,7 @@ function GR:ShowTest(count)
                     diminished = d.dim,
                     spellId = testSpellId or 118,
                     active = true,
-                    resetTime = GetTime() + 300, -- 5 min so they stay visible in test
+                    resetTime = GetTime() + math.random(8, 16), -- realistic countdown
                 }
             end
             GR:UpdateDRIcons(i)
@@ -1349,10 +1405,44 @@ function GR:ShowTest(count)
 
     GR:SetLocked(false)
     GR:Print("Test mode: " .. count .. " frames. |cff00ff00/gladius hide|r to dismiss.")
+
+    -- Looping ticker: reset expired DR timers and trinket CDs so preview stays alive
+    if not GR._testLoopTicker then
+        GR._testLoopTicker = C_Timer.NewTicker(2, function()
+            if not GR.testMode then
+                if GR._testLoopTicker then GR._testLoopTicker:Cancel(); GR._testLoopTicker = nil end
+                return
+            end
+            for i = 1, 5 do
+                local data = GR.arenaData[i]
+                if data and data.dr then
+                    for cat, drData in pairs(data.dr) do
+                        if drData.active and drData.resetTime > 0 and GetTime() >= drData.resetTime then
+                            -- Reset with new timer
+                            drData.resetTime = GetTime() + math.random(8, 16)
+                        end
+                    end
+                end
+                -- Reset trinket when it expires (units 2 and 4)
+                if data and data.trinketUsed > 0 then
+                    local remaining = data.trinketUsed + GR.TRINKET_COOLDOWN - GetTime()
+                    if remaining <= 0 then
+                        data.trinketUsed = GetTime() - math.random(5, 30)
+                        local f = GR.frames[i]
+                        if f then
+                            f.trinket.icon:SetDesaturated(true)
+                            f.trinket.cooldown:SetCooldown(data.trinketUsed, GR.TRINKET_COOLDOWN)
+                        end
+                    end
+                end
+            end
+        end)
+    end
 end
 
 function GR:HideTest()
     CancelTestTimers()
+    if GR._testLoopTicker then GR._testLoopTicker:Cancel(); GR._testLoopTicker = nil end
     GR.testMode = false
     GR:HideAllFrames()
     GR:SetLocked(GR.db.locked)

@@ -352,14 +352,12 @@ GR.BAR_TEXTURES = {
     ["Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar"]                          = "Blizzard Skills",
     ["Interface\\RaidFrame\\Raid-Bar-Hp-Fill"]                                          = "Blizzard Raid",
     ["Interface\\Buttons\\WHITE8x8"]                                                    = "Solid",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex"]                = "ElvUI Gloss",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex2"]               = "ElvUI Norm",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex3"]               = "ElvUI Norm1",
+    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex"]                = "Gloss",
+    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex2"]               = "Norm",
+    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex3"]               = "Norm1",
     ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\Minimalist"]             = "Minimalist",
     ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\Melli"]                  = "Melli",
     ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\Smooth"]                 = "Smooth",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\FabricSilk"]             = "Fabric Silk",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\Planks"]                 = "Planks",
 }
 
 ------------------------------------------------------------

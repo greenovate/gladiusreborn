@@ -1,10 +1,12 @@
 ## Interface: 20505
 ## Title: Gladius Reborn
-## Notes: Arena enemy unit frames for TBC Classic Anniversary. A modern Gladius replacement.
+## Notes: Arena enemy unit frames for TBC Classic Anniversary. A modern GladiusEx replacement.
 ## Author: evildz on nightslayer
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: GladiusRebornDB
 ## SavedVariablesPerCharacter: GladiusRebornCharDB
+
+Libs\embeds.xml
 
 SpellData.lua
 MacroCatalog.lua
@@ -13,5 +15,6 @@ Frames.lua
 Tracking.lua
 Nameplates.lua
 ArenaUtils.lua
+BGCallouts.lua
 Options.lua
 Config.lua

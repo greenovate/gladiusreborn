@@ -505,20 +505,44 @@ function GR:CreateQueueFrame()
     queueFrame:Hide()
 end
 
-function GR:OnQueuePop()
+function GR:OnQueuePop(mapName, teamSize)
     local cfg = GR.db and GR.db.announcements
     if cfg and cfg.queueAlert == false then return end
 
     if not queueFrame then GR:CreateQueueFrame() end
+
+    -- Set title based on what popped
+    local label = "QUEUE POP!"
+    if mapName and mapName ~= "" then
+        if teamSize and teamSize > 0 then
+            label = mapName .. " " .. teamSize .. "v" .. teamSize .. "!"
+        else
+            label = mapName .. "!"
+        end
+    end
+    queueFrame.title:SetText("|cffff3333" .. label .. "|r")
 
     queueActive = true
     queueExpireTime = GetTime() + QUEUE_ACCEPT_TIME
     queueFrame:Show()
     queueFrame.flash:Play()
 
-    -- Play sound even when game is minimized
-    PlaySound(8959, "Master") -- PVPENTERQUEUE sound
-    -- Use Master channel so it plays when minimized
+    -- Temporarily enable background sound so the alert is heard when minimized
+    local wasBGSound = GetCVar("Sound_EnableSoundWhenGameIsInBG")
+    if wasBGSound == "0" then
+        SetCVar("Sound_EnableSoundWhenGameIsInBG", "1")
+    end
+
+    -- Play multiple sounds for attention
+    PlaySound(8959, "Master")  -- PVP queue sound
+    PlaySound(8959, "Master")  -- repeat for emphasis
+
+    -- Restore background sound setting after a delay
+    if wasBGSound == "0" then
+        C_Timer.After(3, function()
+            SetCVar("Sound_EnableSoundWhenGameIsInBG", "0")
+        end)
+    end
 
     -- Flash the taskbar
     FlashClientIcon()
@@ -540,9 +564,8 @@ queueEventFrame:SetScript("OnEvent", function(self, event, ...)
         for i = 1, GetMaxBattlefieldID() do
             local status, mapName, teamSize, registeredMatch, suspendedQueue, queueType, gameId, role, asGroup, shortDescription, longDescription = GetBattlefieldStatus(i)
             if status == "confirm" then
-                -- Queue popped!
                 if not queueActive then
-                    GR:OnQueuePop()
+                    GR:OnQueuePop(mapName, teamSize)
                 end
                 return
             end
@@ -552,4 +575,225 @@ queueEventFrame:SetScript("OnEvent", function(self, event, ...)
             GR:OnQueueAcceptOrDecline()
         end
     end
+end)
+
+------------------------------------------------------------
+-- Lose Control: Big CC icon on screen when you're CC'd
+------------------------------------------------------------
+
+-- CC types by priority (highest = most important to show)
+local CC_TYPES = {
+    -- Stuns
+    [1833]  = { priority = 10, type = "stun" },    -- Cheap Shot
+    [408]   = { priority = 10, type = "stun" },    -- Kidney Shot
+    [853]   = { priority = 10, type = "stun" },    -- Hammer of Justice
+    [10308] = { priority = 10, type = "stun" },    -- Hammer of Justice
+    [8983]  = { priority = 10, type = "stun" },    -- Bash
+    [12809] = { priority = 10, type = "stun" },    -- Concussion Blow
+    [20549] = { priority = 10, type = "stun" },    -- War Stomp
+    [9005]  = { priority = 10, type = "stun" },    -- Pounce
+    [30283] = { priority = 10, type = "stun" },    -- Shadowfury
+    [19577] = { priority = 10, type = "stun" },    -- Intimidation
+    [20253] = { priority = 10, type = "stun" },    -- Intercept Stun
+    [25274] = { priority = 10, type = "stun" },    -- Intercept Stun
+
+    -- Incapacitates
+    [118]   = { priority = 9, type = "incap" },    -- Polymorph
+    [12824] = { priority = 9, type = "incap" },
+    [12825] = { priority = 9, type = "incap" },
+    [12826] = { priority = 9, type = "incap" },
+    [28271] = { priority = 9, type = "incap" },    -- Poly: Turtle
+    [28272] = { priority = 9, type = "incap" },    -- Poly: Pig
+    [6770]  = { priority = 9, type = "incap" },    -- Sap
+    [2070]  = { priority = 9, type = "incap" },
+    [11297] = { priority = 9, type = "incap" },
+    [20066] = { priority = 9, type = "incap" },    -- Repentance
+    [1776]  = { priority = 8, type = "incap" },    -- Gouge
+    [19503] = { priority = 8, type = "incap" },    -- Scatter Shot
+    [3355]  = { priority = 9, type = "incap" },    -- Freezing Trap
+    [14309] = { priority = 9, type = "incap" },    -- Freezing Trap
+
+    -- Fears
+    [5782]  = { priority = 8, type = "fear" },     -- Fear
+    [6213]  = { priority = 8, type = "fear" },
+    [6215]  = { priority = 8, type = "fear" },
+    [8122]  = { priority = 8, type = "fear" },     -- Psychic Scream
+    [8124]  = { priority = 8, type = "fear" },
+    [10888] = { priority = 8, type = "fear" },
+    [10890] = { priority = 8, type = "fear" },
+    [5246]  = { priority = 8, type = "fear" },     -- Intimidating Shout
+    [5484]  = { priority = 8, type = "fear" },     -- Howl of Terror
+    [17928] = { priority = 8, type = "fear" },
+    [6358]  = { priority = 8, type = "fear" },     -- Seduction
+    [2094]  = { priority = 8, type = "fear" },     -- Blind
+
+    -- Cyclone
+    [33786] = { priority = 9, type = "cyclone" },  -- Cyclone
+
+    -- Silence
+    [15487] = { priority = 6, type = "silence" },  -- Silence
+    [18469] = { priority = 6, type = "silence" },  -- Counterspell - Silenced
+    [24259] = { priority = 6, type = "silence" },  -- Spell Lock
+    [28730] = { priority = 6, type = "silence" },  -- Arcane Torrent
+
+    -- Horror
+    [17926] = { priority = 7, type = "horror" },   -- Death Coil
+    [27223] = { priority = 7, type = "horror" },
+
+    -- Roots
+    [122]   = { priority = 4, type = "root" },     -- Frost Nova
+    [339]   = { priority = 4, type = "root" },     -- Entangling Roots
+
+    -- Disarm
+    [676]   = { priority = 5, type = "disarm" },   -- Disarm
+
+    -- Sleep
+    [19386] = { priority = 7, type = "sleep" },    -- Wyvern Sting
+    [2637]  = { priority = 7, type = "sleep" },    -- Hibernate
+}
+
+-- Type colors for the border
+local CC_COLORS = {
+    stun    = { 1, 1, 0 },
+    incap   = { 0, 0.5, 1 },
+    fear    = { 0.7, 0, 0.7 },
+    cyclone = { 0, 0.8, 0.3 },
+    silence = { 0, 0.8, 0.8 },
+    horror  = { 1, 0, 0 },
+    root    = { 0.6, 0.4, 0.2 },
+    disarm  = { 0.8, 0.8, 0.8 },
+    sleep   = { 0.4, 0.4, 0.8 },
+}
+
+local lcFrame = nil
+
+function GR:CreateLoseControl()
+    if lcFrame then return end
+
+    lcFrame = CreateFrame("Frame", "GladiusReborn_LoseControl", UIParent)
+    lcFrame:SetSize(64, 64)
+    lcFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+    lcFrame:SetMovable(true)
+    lcFrame:EnableMouse(true)
+    lcFrame:SetClampedToScreen(true)
+    lcFrame:RegisterForDrag("LeftButton")
+    lcFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    lcFrame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    lcFrame:SetFrameStrata("HIGH")
+
+    -- Border glow
+    lcFrame.border = CreateFrame("Frame", nil, lcFrame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    lcFrame.border:SetPoint("TOPLEFT", -3, 3)
+    lcFrame.border:SetPoint("BOTTOMRIGHT", 3, -3)
+    if lcFrame.border.SetBackdrop then
+        lcFrame.border:SetBackdrop({
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 2,
+        })
+    end
+
+    -- Spell icon
+    lcFrame.icon = lcFrame:CreateTexture(nil, "ARTWORK")
+    lcFrame.icon:SetAllPoints()
+    lcFrame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    -- Cooldown spiral
+    lcFrame.cooldown = CreateFrame("Cooldown", "GladiusReborn_LoseControlCD", lcFrame, "CooldownFrameTemplate")
+    lcFrame.cooldown:SetAllPoints()
+    lcFrame.cooldown:SetHideCountdownNumbers(true)
+    lcFrame.cooldown:SetDrawEdge(true)
+
+    -- Timer text (our own, large and clear)
+    lcFrame.timer = lcFrame:CreateFontString(nil, "OVERLAY")
+    lcFrame.timer:SetPoint("CENTER", lcFrame, "CENTER", 0, 0)
+    lcFrame.timer:SetFont(STANDARD_TEXT_FONT, 22, "OUTLINE")
+    lcFrame.timer:SetTextColor(1, 1, 1)
+
+    -- CC type label below
+    lcFrame.label = lcFrame:CreateFontString(nil, "OVERLAY")
+    lcFrame.label:SetPoint("TOP", lcFrame, "BOTTOM", 0, -2)
+    lcFrame.label:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
+    lcFrame.label:SetTextColor(1, 1, 1)
+
+    lcFrame.activeSpellId = nil
+    lcFrame.expirationTime = 0
+    lcFrame.duration = 0
+
+    lcFrame:SetScript("OnUpdate", function(self, elapsed)
+        if not self.activeSpellId then return end
+        local remaining = self.expirationTime - GetTime()
+        if remaining <= 0 then
+            self:Hide()
+            self.activeSpellId = nil
+            return
+        end
+        self.timer:SetText(format("%.1f", remaining))
+    end)
+
+    lcFrame:Hide()
+end
+
+function GR:UpdateLoseControl()
+    local cfg = GR.db and GR.db.announcements
+    if cfg and cfg.loseControl == false then return end
+    if not lcFrame then GR:CreateLoseControl() end
+
+    local bestPriority = 0
+    local bestSpellId = nil
+    local bestIcon = nil
+    local bestDuration = 0
+    local bestExpiration = 0
+    local bestType = nil
+
+    -- Scan player debuffs for CC
+    for i = 1, 40 do
+        local name, icon, _, _, duration, expirationTime, _, _, _, spellId = UnitDebuff("player", i)
+        if not name then break end
+        local ccInfo = CC_TYPES[spellId]
+        if ccInfo and ccInfo.priority > bestPriority then
+            bestPriority = ccInfo.priority
+            bestSpellId = spellId
+            bestIcon = icon
+            bestDuration = duration
+            bestExpiration = expirationTime
+            bestType = ccInfo.type
+        end
+    end
+
+    if bestSpellId then
+        lcFrame.icon:SetTexture(bestIcon)
+        lcFrame.activeSpellId = bestSpellId
+        lcFrame.expirationTime = bestExpiration
+        lcFrame.duration = bestDuration
+
+        -- Cooldown spiral
+        if bestDuration and bestDuration > 0 then
+            lcFrame.cooldown:SetCooldown(bestExpiration - bestDuration, bestDuration)
+            lcFrame.cooldown:Show()
+        end
+
+        -- Border color by CC type
+        local color = CC_COLORS[bestType] or { 1, 1, 1 }
+        if lcFrame.border.SetBackdropBorderColor then
+            lcFrame.border:SetBackdropBorderColor(color[1], color[2], color[3], 1)
+        end
+
+        -- Label
+        lcFrame.label:SetText(bestType and bestType:upper() or "CC")
+        lcFrame.label:SetTextColor(color[1], color[2], color[3])
+
+        lcFrame:Show()
+    else
+        lcFrame:Hide()
+        lcFrame.activeSpellId = nil
+    end
+end
+
+-- Scan on UNIT_AURA for player
+local lcEventFrame = CreateFrame("Frame")
+lcEventFrame:RegisterEvent("UNIT_AURA")
+lcEventFrame:SetScript("OnEvent", function(self, event, unit)
+    if unit ~= "player" then return end
+    if not GR.inArena then return end
+    GR:UpdateLoseControl()
 end)
