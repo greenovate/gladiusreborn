@@ -352,12 +352,12 @@ GR.BAR_TEXTURES = {
     ["Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar"]                          = "Blizzard Skills",
     ["Interface\\RaidFrame\\Raid-Bar-Hp-Fill"]                                          = "Blizzard Raid",
     ["Interface\\Buttons\\WHITE8x8"]                                                    = "Solid",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex"]                = "Gloss",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex2"]               = "Norm",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\NormTex3"]               = "Norm1",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\Minimalist"]             = "Minimalist",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\Melli"]                  = "Melli",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Textures\\Smooth"]                 = "Smooth",
+    ["Interface\\AddOns\\GladiusReborn\\Media\\NormTex"]                                = "Gloss",
+    ["Interface\\AddOns\\GladiusReborn\\Media\\NormTex2"]                               = "Norm",
+    ["Interface\\AddOns\\GladiusReborn\\Media\\NormTex3"]                               = "Norm1",
+    ["Interface\\AddOns\\GladiusReborn\\Media\\Minimalist"]                             = "Minimalist",
+    ["Interface\\AddOns\\GladiusReborn\\Media\\Melli"]                                  = "Melli",
+    ["Interface\\AddOns\\GladiusReborn\\Media\\Smooth"]                                 = "Smooth",
 }
 
 ------------------------------------------------------------

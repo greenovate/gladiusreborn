@@ -564,28 +564,37 @@ function GR:UpdateGlow(index)
             local threshold = cfg.enemyLowHPThreshold or 25
             if hpPct > 0 and hpPctInt <= threshold then
                 GR:SetGlow(f, 0, 1, 0, ">>> CAN DIE <<<")
-                if CanAlert(index, "killable") then
-                    GR:Announce("KILL TARGET: " .. enemyName .. " (" .. hpPctInt .. "%) NO TRINKET", "killTarget", 4)
+                if not enemyWasLow["kill" .. index] then
+                    enemyWasLow["kill" .. index] = true
+                    GR:Announce("KILL TARGET: " .. enemyName .. " (" .. hpPctInt .. "%) NO TRINKET", "killTarget", 0)
                 end
             else
                 GR:SetGlow(f, 0.2, 0.7, 0.2, "NO TRINKET")
+                enemyWasLow["kill" .. index] = nil
             end
         else
             GR:ClearGlow(f)
+            enemyWasLow["kill" .. index] = nil
         end
     end
 
-    -- Enemy low HP announcement (regardless of trinket)
+    -- Enemy low HP (state-based, fires once per drop below threshold)
     local enemyThreshold = cfg.enemyLowHPThreshold or 25
-    if hpPct > 0 and hpPctInt <= enemyThreshold and not hasDefensive and CanAlert(index, "enemylow") then
-        GR:Announce("ENEMY LOW: " .. enemyName .. " (" .. hpPctInt .. "%)", "enemyLowHP", 5)
+    if hpPct > 0 and hpPctInt <= enemyThreshold and not hasDefensive then
+        if not enemyWasLow[index] then
+            enemyWasLow[index] = true
+            GR:Announce("ENEMY LOW: " .. enemyName .. " (" .. hpPctInt .. "%)", "enemyLowHP", 0)
+        end
+    elseif hpPctInt > enemyThreshold then
+        enemyWasLow[index] = nil
     end
 end
 
 ------------------------------------------------------------
 -- Teammate Low HP Warning (fires once, resets when above threshold)
 ------------------------------------------------------------
-local teammateWasLow = {} -- [unit] = true when alerted, false/nil when recovered
+local teammateWasLow = {}
+local enemyWasLow = {}
 
 local function CheckTeammateHP()
     if not GR.inArena then return end
@@ -601,18 +610,19 @@ local function CheckTeammateHP()
             if hpMax > 0 then
                 local pct = hp / hpMax
                 if pct < threshold and pct > 0 then
-                    -- Only alert once per drop
                     if not teammateWasLow[unit] then
                         teammateWasLow[unit] = true
                         local name = UnitName(unit) or unit
                         local pctText = math.floor(pct * 100)
-                        GR:Announce("TEAM LOW: " .. name .. " (" .. pctText .. "%)", "teamLowHP", 2)
+                        GR:Announce("TEAM LOW: " .. name .. " (" .. pctText .. "%)", "teamLowHP", 0)
                     end
-                else
-                    -- Reset when they go back above threshold
+                elseif pct >= threshold then
                     teammateWasLow[unit] = nil
                 end
             end
+        else
+            -- Dead or gone, reset
+            teammateWasLow[unit] = nil
         end
     end
 end
@@ -645,5 +655,102 @@ glowUpdateFrame:SetScript("OnUpdate", function(self, elapsed)
     -- Check teammate HP
     if not GR.testMode then
         CheckTeammateHP()
+    end
+end)
+
+------------------------------------------------------------
+-- Target Counter System
+-- Shows who is targeting who on both sides
+------------------------------------------------------------
+local targetUpdateFrame = CreateFrame("Frame")
+targetUpdateFrame:RegisterEvent("UNIT_TARGET")
+
+local targetElapsed = 0
+targetUpdateFrame:SetScript("OnUpdate", function(self, elapsed)
+    targetElapsed = targetElapsed + elapsed
+    if targetElapsed < 0.3 then return end
+    targetElapsed = 0
+    if not GR.inArena and not GR.testMode then return end
+
+    local partyUnits = { "player" }
+    for i = 1, 4 do
+        if UnitExists("party" .. i) then
+            tinsert(partyUnits, "party" .. i)
+        end
+    end
+
+    -- Count how many allies are targeting each arena unit
+    for i = 1, 5 do
+        local f = GR.frames[i]
+        if f and f:IsShown() and f.assistCount then
+            local arenaUnit = "arena" .. i
+            local count = 0
+
+            if UnitExists(arenaUnit) then
+                local arenaGUID = UnitGUID(arenaUnit)
+                for _, pUnit in ipairs(partyUnits) do
+                    local targetGUID = UnitGUID(pUnit .. "target")
+                    if targetGUID and targetGUID == arenaGUID then
+                        count = count + 1
+                    end
+                end
+            end
+
+            if count > 0 then
+                f.assistCount.text:SetText(count)
+                -- Color by count: green=1, yellow=2, red=3+
+                if count >= 3 then
+                    f.assistCount.text:SetTextColor(0.2, 1, 0.2)
+                    f.assistCount.bg:SetVertexColor(0, 0.3, 0, 0.8)
+                elseif count == 2 then
+                    f.assistCount.text:SetTextColor(1, 1, 0.2)
+                    f.assistCount.bg:SetVertexColor(0.2, 0.2, 0, 0.8)
+                else
+                    f.assistCount.text:SetTextColor(0.7, 0.7, 0.7)
+                    f.assistCount.bg:SetVertexColor(0, 0, 0, 0.7)
+                end
+                f.assistCount:Show()
+            else
+                f.assistCount:Hide()
+            end
+        end
+    end
+
+    -- Count how many enemies are targeting each party member
+    -- Show on the arena frame of the enemy doing the targeting
+    for i = 1, 5 do
+        local f = GR.frames[i]
+        if f and f:IsShown() and f.threatCount then
+            local arenaUnit = "arena" .. i
+            if UnitExists(arenaUnit) then
+                local targetUnit = arenaUnit .. "target"
+                if UnitExists(targetUnit) then
+                    -- Find which party member this enemy is targeting
+                    local targetName = UnitName(targetUnit)
+                    local isTargetingAlly = false
+
+                    for _, pUnit in ipairs(partyUnits) do
+                        if UnitIsUnit(targetUnit, pUnit) then
+                            isTargetingAlly = true
+                            break
+                        end
+                    end
+
+                    if isTargetingAlly and targetName then
+                        -- Show who this enemy is targeting
+                        local shortName = targetName:sub(1, 6)
+                        f.threatCount.text:SetText(">" .. shortName)
+                        f.threatCount.text:SetTextColor(1, 0.4, 0.4)
+                        f.threatCount:Show()
+                    else
+                        f.threatCount:Hide()
+                    end
+                else
+                    f.threatCount:Hide()
+                end
+            else
+                f.threatCount:Hide()
+            end
+        end
     end
 end)

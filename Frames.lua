@@ -52,7 +52,7 @@ GR.PRESETS = {
         barHeight = 40,
         castBarHeight = 14,
         spacing = 3,
-        barTexture = "Interface\\AddOns\\ElvUI\\Core\\Media\\Textures\\NormTex",
+        barTexture = "Interface\\AddOns\\GladiusReborn\\Media\\NormTex",
         bgAlpha = 0.9,
         borderSize = 1,
         borderColor = { 0, 0, 0, 1 },
@@ -775,6 +775,51 @@ local function CreateArenaFrame(index)
     f.highlight = f:CreateTexture(nil, "HIGHLIGHT")
     f.highlight:SetAllPoints()
     f.highlight:SetColorTexture(1, 1, 1, 0.1)
+
+    -- Assist target counter: how many allies targeting this enemy
+    f.assistCount = CreateFrame("Frame", nil, f)
+    f.assistCount:SetSize(20, 20)
+    f.assistCount:SetPoint("TOPRIGHT", f, "TOPLEFT", -2, 0)
+    f.assistCount:SetFrameLevel(f:GetFrameLevel() + 2)
+    f.assistCount:EnableMouse(false)
+
+    f.assistCount.bg = f.assistCount:CreateTexture(nil, "BACKGROUND")
+    f.assistCount.bg:SetAllPoints()
+    f.assistCount.bg:SetTexture("Interface\\Buttons\\WHITE8x8")
+    f.assistCount.bg:SetVertexColor(0, 0, 0, 0.7)
+
+    f.assistCount.arrow = f.assistCount:CreateTexture(nil, "ARTWORK")
+    f.assistCount.arrow:SetSize(12, 12)
+    f.assistCount.arrow:SetPoint("CENTER", f.assistCount, "CENTER", 0, 3)
+    f.assistCount.arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+    f.assistCount.arrow:SetRotation(math.pi) -- point right toward the frame
+
+    f.assistCount.text = f.assistCount:CreateFontString(nil, "OVERLAY")
+    f.assistCount.text:SetPoint("CENTER", f.assistCount, "CENTER", 0, -4)
+    f.assistCount.text:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
+    f.assistCount.text:SetTextColor(0.2, 1, 0.2)
+
+    f.assistCount:Hide()
+
+    -- Threat indicator: how many enemies targeting this unit (for party frames later)
+    -- For now, reuse for enemy frames to show who enemies are targeting on our team
+    f.threatCount = CreateFrame("Frame", nil, f)
+    f.threatCount:SetSize(20, 14)
+    f.threatCount:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -2, 0)
+    f.threatCount:SetFrameLevel(f:GetFrameLevel() + 2)
+    f.threatCount:EnableMouse(false)
+
+    f.threatCount.bg = f.threatCount:CreateTexture(nil, "BACKGROUND")
+    f.threatCount.bg:SetAllPoints()
+    f.threatCount.bg:SetTexture("Interface\\Buttons\\WHITE8x8")
+    f.threatCount.bg:SetVertexColor(0, 0, 0, 0.7)
+
+    f.threatCount.text = f.threatCount:CreateFontString(nil, "OVERLAY")
+    f.threatCount.text:SetPoint("CENTER")
+    f.threatCount.text:SetFont(STANDARD_TEXT_FONT, 8, "OUTLINE")
+    f.threatCount.text:SetTextColor(1, 0.5, 0.5)
+
+    f.threatCount:Hide()
 
     return f
 end

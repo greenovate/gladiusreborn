@@ -115,7 +115,7 @@ GR.FONT_LIST = {
     ["Fonts\\MORPHEUS.TTF"]    = "Morpheus",
     ["Fonts\\skurri.TTF"]      = "Skurri",
     ["Fonts\\FRIENDS.TTF"]     = "Friends",
-    ["Interface\\AddOns\\ElvUI\\Game\\Shared\\Media\\Fonts\\Expressway.ttf"] = "Expressway",
+    ["Interface\\AddOns\\GladiusReborn\\Media\\Expressway.ttf"] = "Expressway",
 }
 
 ------------------------------------------------------------
